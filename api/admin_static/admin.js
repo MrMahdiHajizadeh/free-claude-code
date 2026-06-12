@@ -16,6 +16,13 @@ const VIEW_GROUPS = [
     containerId: "providersSections",
   },
   {
+    id: "model_hub",
+    label: "Model Hub",
+    title: "Model Hub",
+    sections: [],
+    containerId: "",
+  },
+  {
     id: "model_config",
     label: "Model Config",
     title: "Model Config",
@@ -108,6 +115,23 @@ async function load() {
   byId("configPath").textContent = config.paths.managed;
   await validate(false);
   await refreshLocalStatus();
+
+  try {
+    const statusResult = await api("/admin/api/status");
+    if (statusResult.cached_models) {
+      const discovered = [];
+      Object.entries(statusResult.cached_models).forEach(([providerId, models]) => {
+        models.forEach((model) => {
+          discovered.push(`${providerId}/${model}`);
+        });
+      });
+      state.modelOptions = Array.from(new Set([...state.modelOptions, ...discovered])).sort();
+      syncModelDatalist();
+    }
+  } catch (err) {
+    console.error("Failed to load active status:", err);
+  }
+
   updateDirtyState();
   showMessage("");
 }
@@ -153,6 +177,10 @@ function setActiveView(viewId, { scroll = false } = {}) {
     view.classList.toggle("active", selected);
     view.hidden = !selected;
   });
+
+  if (viewId === "model_hub") {
+    syncModelHubView();
+  }
 
   if (scroll) {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -207,7 +235,9 @@ function updateProviderCard(providerId, status, label, metaText) {
 
 function renderSections(sections, fields) {
   VIEW_GROUPS.forEach((view) => {
-    byId(view.containerId).innerHTML = "";
+    if (view.containerId) {
+      byId(view.containerId).innerHTML = "";
+    }
   });
 
   const sectionById = new Map(sections.map((section) => [section.id, section]));
@@ -219,6 +249,7 @@ function renderSections(sections, fields) {
   });
 
   VIEW_GROUPS.forEach((view) => {
+    if (!view.containerId) return;
     const container = byId(view.containerId);
     view.sections.forEach((sectionId) => {
       const section = sectionById.get(sectionId);
@@ -287,7 +318,22 @@ function renderField(field) {
   input.addEventListener("input", updateDirtyState);
   input.addEventListener("change", updateDirtyState);
 
-  wrapper.append(label, input);
+  if (field.key.startsWith("MODEL") && field.type !== "boolean") {
+    const container = document.createElement("div");
+    container.className = "input-with-button";
+    
+    const chooseBtn = document.createElement("button");
+    chooseBtn.type = "button";
+    chooseBtn.className = "secondary-button choose-model-btn";
+    chooseBtn.textContent = "Choose...";
+    chooseBtn.addEventListener("click", () => openModelChooser(field.key));
+    
+    container.append(input, chooseBtn);
+    wrapper.append(label, container);
+  } else {
+    wrapper.append(label, input);
+  }
+
   if (field.description) {
     const description = document.createElement("div");
     description.className = "field-description";
@@ -491,6 +537,376 @@ function showMessage(message, kind = "") {
 
 byId("validateButton").addEventListener("click", () => validate(true));
 byId("applyButton").addEventListener("click", apply);
+
+function switchToProvider(provider) {
+  const modelInput = byId("field-MODEL");
+  if (!modelInput) return;
+  if (provider === "open_router") {
+    modelInput.value = "open_router/openrouter/free";
+    const keyInput = byId("field-OPENROUTER_API_KEY");
+    if (keyInput && !keyInput.value && keyInput.placeholder === "Not configured") {
+      showMessage("Switched default model to OpenRouter Free. Please enter your OpenRouter API key(s) in the field below.", "warn");
+      keyInput.focus();
+    } else {
+      showMessage("Switched default model to OpenRouter Free. Click Apply to save.", "ok");
+    }
+  } else if (provider === "nvidia_nim") {
+    modelInput.value = "nvidia_nim/nvidia/nemotron-3-super-120b-a12b";
+    const keyInput = byId("field-NVIDIA_NIM_API_KEY");
+    if (keyInput && !keyInput.value && keyInput.placeholder === "Not configured") {
+      showMessage("Switched default model to NVIDIA NIM. Please enter your NVIDIA NIM API key in the field below.", "warn");
+      keyInput.focus();
+    } else {
+      showMessage("Switched default model to NVIDIA NIM. Click Apply to save.", "ok");
+    }
+  }
+  modelInput.dispatchEvent(new Event("input"));
+  modelInput.dispatchEvent(new Event("change"));
+}
+
+byId("switchToOpenRouter").addEventListener("click", () => switchToProvider("open_router"));
+byId("switchToNvidia").addEventListener("click", () => switchToProvider("nvidia_nim"));
+
+/* Modal Model Chooser Logic */
+const PRELOADED_MODELS = [
+  // OpenRouter Free
+  { id: "open_router/meta-llama/llama-3.3-70b-instruct:free", name: "Llama 3.3 70B Instruct", provider: "open_router", free: true },
+  { id: "open_router/qwen/qwen3-coder:free", name: "Qwen3 Coder 480B MoE", provider: "open_router", free: true },
+  { id: "open_router/google/gemma-4-31b-it:free", name: "Gemma 4 31B Instruct", provider: "open_router", free: true },
+  { id: "open_router/openrouter/free", name: "Auto Free Router", provider: "open_router", free: true },
+  { id: "open_router/nousresearch/hermes-3-llama-3.1-405b:free", name: "Hermes 3 405B", provider: "open_router", free: true },
+  { id: "open_router/nvidia/nemotron-3-super-120b-a12b:free", name: "Nemotron 3 Super", provider: "open_router", free: true },
+  // NVIDIA NIM
+  { id: "nvidia_nim/nvidia/nemotron-3-super-120b-a12b", name: "Nemotron 3 Super", provider: "nvidia_nim", free: false },
+  { id: "nvidia_nim/meta/llama-3-70b-instruct", name: "Llama 3 70B Instruct", provider: "nvidia_nim", free: false },
+  // Gemini
+  { id: "gemini/gemini-2.5-pro", name: "Gemini 2.5 Pro", provider: "gemini", free: false },
+  { id: "gemini/gemini-2.5-flash", name: "Gemini 2.5 Flash", provider: "gemini", free: false },
+  // DeepSeek
+  { id: "deepseek/deepseek-chat", name: "DeepSeek V3", provider: "deepseek", free: false },
+  { id: "deepseek/deepseek-reasoner", name: "DeepSeek R1", provider: "deepseek", free: false },
+];
+
+function getAllModels() {
+  const models = [...PRELOADED_MODELS];
+  const knownIds = new Set(models.map(m => m.id));
+  
+  state.modelOptions.forEach((modelId) => {
+    if (knownIds.has(modelId)) return;
+    
+    const parts = modelId.split("/");
+    const provider = parts[0];
+    const rest = parts.slice(1).join("/");
+    
+    const isFree = modelId.endsWith(":free") || modelId.includes("/free");
+    
+    models.push({
+      id: modelId,
+      name: rest.replace(/:free$/, "").split("/").pop().replace(/[-_]/g, " "),
+      provider: provider,
+      free: isFree,
+    });
+  });
+  
+  return models;
+}
+
+function renderModalModels(searchQuery = "") {
+  const container = byId("modalModelList");
+  container.innerHTML = "";
+  
+  const query = searchQuery.toLowerCase().trim();
+  const allModels = getAllModels();
+  
+  const groups = {};
+  allModels.forEach((model) => {
+    const matchesName = model.name.toLowerCase().includes(query);
+    const matchesId = model.id.toLowerCase().includes(query);
+    if (query && !matchesName && !matchesId) return;
+    
+    if (!groups[model.provider]) {
+      groups[model.provider] = [];
+    }
+    groups[model.provider].push(model);
+  });
+  
+  Object.keys(groups).sort().forEach((provider) => {
+    const groupEl = document.createElement("div");
+    groupEl.className = "provider-group";
+    
+    const titleEl = document.createElement("div");
+    titleEl.className = "provider-group-title";
+    titleEl.textContent = providerName(provider);
+    groupEl.appendChild(titleEl);
+    
+    groups[provider].forEach((model) => {
+      const row = document.createElement("div");
+      row.className = "model-item-row";
+      
+      const details = document.createElement("div");
+      details.className = "model-item-details";
+      
+      const name = document.createElement("div");
+      name.className = "model-item-name";
+      name.textContent = model.name;
+      
+      const slug = document.createElement("div");
+      slug.className = "model-item-slug";
+      slug.textContent = model.id;
+      
+      details.append(name, slug);
+      
+      const badges = document.createElement("div");
+      badges.className = "model-item-badges";
+      
+      if (model.free) {
+        const badge = document.createElement("span");
+        badge.className = "model-item-badge free";
+        badge.textContent = "Free";
+        badges.appendChild(badge);
+      }
+      
+      if (model.id.includes("reason") || model.id.includes("thinking") || model.id.includes("r1")) {
+        const badge = document.createElement("span");
+        badge.className = "model-item-badge reasoning";
+        badge.textContent = "Reasoning";
+        badges.appendChild(badge);
+      }
+      
+      row.append(details, badges);
+      
+      row.addEventListener("click", () => {
+        selectModelForChooser(model.id);
+      });
+      
+      groupEl.appendChild(row);
+    });
+    
+    container.appendChild(groupEl);
+  });
+  
+  if (container.children.length === 0) {
+    const noResult = document.createElement("div");
+    noResult.style.color = "var(--muted)";
+    noResult.style.textAlign = "center";
+    noResult.style.padding = "20px";
+    noResult.textContent = "No models match your search query.";
+    container.appendChild(noResult);
+  }
+}
+
+function selectModelForChooser(modelId) {
+  const targetKey = state.activeChooserField;
+  if (!targetKey) return;
+  
+  const input = byId(`field-${targetKey}`);
+  if (input) {
+    input.value = modelId;
+    input.dispatchEvent(new Event("input"));
+    input.dispatchEvent(new Event("change"));
+  }
+  
+  closeModelChooser();
+}
+
+function openModelChooser(fieldKey) {
+  state.activeChooserField = fieldKey;
+  byId("modelSearchInput").value = "";
+  renderModalModels();
+  byId("modelModal").classList.add("active");
+  setTimeout(() => byId("modelSearchInput").focus(), 50);
+}
+
+function closeModelChooser() {
+  state.activeChooserField = null;
+  byId("modelModal").classList.remove("active");
+}
+
+byId("closeModalBtn").addEventListener("click", closeModelChooser);
+byId("modelModal").addEventListener("click", (e) => {
+  if (e.target === byId("modelModal")) {
+    closeModelChooser();
+  }
+});
+byId("modelSearchInput").addEventListener("input", (e) => {
+  renderModalModels(e.target.value);
+});
+
+/* Model Hub Controller Logic */
+state.selectedHubModel = null;
+
+function syncModelHubView() {
+  const slots = ["MODEL", "MODEL_OPUS", "MODEL_SONNET", "MODEL_HAIKU"];
+  slots.forEach((slot) => {
+    const input = byId(`field-${slot}`);
+    const currentVal = input ? input.value : "";
+    const slotEl = byId(`slot-${slot}`);
+    if (slotEl) {
+      if (currentVal) {
+        slotEl.textContent = currentVal;
+        slotEl.classList.remove("empty");
+      } else {
+        slotEl.textContent = "Not configured (Inherit)";
+        slotEl.classList.add("empty");
+      }
+    }
+  });
+
+  const allModels = getAllModels();
+  if (!state.selectedHubModel && allModels.length > 0) {
+    selectModelForHub(allModels[0]);
+  } else if (state.selectedHubModel) {
+    selectModelForHub(state.selectedHubModel);
+  }
+
+  renderHubModels(byId("hubSearchInput").value);
+}
+
+function selectModelForHub(model) {
+  state.selectedHubModel = model;
+  
+  const nameEl = byId("hubSelectedName");
+  const slugEl = byId("hubSelectedSlug");
+  const badgeEl = byId("hubSelectedBadge");
+  
+  if (nameEl) nameEl.textContent = model.name;
+  if (slugEl) slugEl.textContent = model.id;
+  
+  if (badgeEl) {
+    badgeEl.innerHTML = "";
+    if (model.free) {
+      const badge = document.createElement("span");
+      badge.className = "model-item-badge free";
+      badge.textContent = "Free";
+      badgeEl.appendChild(badge);
+    }
+  }
+}
+
+function renderHubModels(searchQuery = "") {
+  const container = byId("hubModelList");
+  if (!container) return;
+  container.innerHTML = "";
+  
+  const query = searchQuery.toLowerCase().trim();
+  const allModels = getAllModels();
+  
+  const groups = {};
+  allModels.forEach((model) => {
+    const matchesName = model.name.toLowerCase().includes(query);
+    const matchesId = model.id.toLowerCase().includes(query);
+    if (query && !matchesName && !matchesId) return;
+    
+    if (!groups[model.provider]) {
+      groups[model.provider] = [];
+    }
+    groups[model.provider].push(model);
+  });
+  
+  Object.keys(groups).sort().forEach((provider) => {
+    const groupEl = document.createElement("div");
+    groupEl.className = "provider-group";
+    
+    const titleEl = document.createElement("div");
+    titleEl.className = "provider-group-title";
+    titleEl.textContent = providerName(provider);
+    groupEl.appendChild(titleEl);
+    
+    groups[provider].forEach((model) => {
+      const row = document.createElement("div");
+      row.className = "model-item-row";
+      if (state.selectedHubModel && state.selectedHubModel.id === model.id) {
+        row.style.borderColor = "var(--accent)";
+        row.style.background = "var(--panel-strong)";
+      }
+      
+      const details = document.createElement("div");
+      details.className = "model-item-details";
+      
+      const name = document.createElement("div");
+      name.className = "model-item-name";
+      name.textContent = model.name;
+      
+      const slug = document.createElement("div");
+      slug.className = "model-item-slug";
+      slug.textContent = model.id;
+      
+      details.append(name, slug);
+      
+      const badges = document.createElement("div");
+      badges.className = "model-item-badges";
+      
+      if (model.free) {
+        const badge = document.createElement("span");
+        badge.className = "model-item-badge free";
+        badge.textContent = "Free";
+        badges.appendChild(badge);
+      }
+      
+      if (model.id.includes("reason") || model.id.includes("thinking") || model.id.includes("r1")) {
+        const badge = document.createElement("span");
+        badge.className = "model-item-badge reasoning";
+        badge.textContent = "Reasoning";
+        badges.appendChild(badge);
+      }
+      
+      row.append(details, badges);
+      
+      row.addEventListener("click", () => {
+        selectModelForHub(model);
+        renderHubModels(searchQuery);
+      });
+      
+      groupEl.appendChild(row);
+    });
+    
+    container.appendChild(groupEl);
+  });
+  
+  if (container.children.length === 0) {
+    const noResult = document.createElement("div");
+    noResult.style.color = "var(--muted)";
+    noResult.style.textAlign = "center";
+    noResult.style.padding = "20px";
+    noResult.textContent = "No models match your search query.";
+    container.appendChild(noResult);
+  }
+}
+
+function assignModelToSlot(slotKey) {
+  if (!state.selectedHubModel) return;
+  const modelId = state.selectedHubModel.id;
+  
+  const input = byId(`field-${slotKey}`);
+  if (input) {
+    input.value = modelId;
+    input.dispatchEvent(new Event("input"));
+    input.dispatchEvent(new Event("change"));
+    
+    const slotEl = byId(`slot-${slotKey}`);
+    if (slotEl) {
+      slotEl.textContent = modelId;
+      slotEl.classList.remove("empty");
+    }
+    showMessage(`Assigned selected model to ${slotKey}. Click Apply to save.`, "ok");
+  }
+}
+
+// Wire up Model Hub assignment buttons
+document.querySelectorAll(".assign-btn").forEach((btn) => {
+  btn.addEventListener("click", (e) => {
+    const slot = e.currentTarget.dataset.slot;
+    assignModelToSlot(slot);
+  });
+});
+
+// Wire up Model Hub search box
+const hubSearch = byId("hubSearchInput");
+if (hubSearch) {
+  hubSearch.addEventListener("input", (e) => {
+    renderHubModels(e.target.value);
+  });
+}
 
 load().catch((error) => {
   showMessage(error.message, "error");

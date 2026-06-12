@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import Any
 
+import httpx
 from core.anthropic import iter_provider_stream_error_sse_events
 from core.anthropic.native_sse_block_policy import (
     NativeSseBlockPolicyState,
@@ -15,6 +16,7 @@ from core.anthropic.native_sse_block_policy import (
 from providers.anthropic_messages import AnthropicMessagesTransport, StreamChunkMode
 from providers.base import ProviderConfig
 from providers.defaults import OPENROUTER_DEFAULT_BASE
+from providers.exceptions import ModelListResponseError, ProviderError
 from providers.model_listing import (
     ProviderModelInfo,
     extract_openrouter_tool_model_ids,
@@ -37,6 +39,21 @@ class OpenRouterProvider(AnthropicMessagesTransport):
             provider_name="OPENROUTER",
             default_base_url=OPENROUTER_DEFAULT_BASE,
         )
+        # Parse multiple keys if comma-separated
+        raw_key = config.api_key or ""
+        self._api_keys = [k.strip() for k in raw_key.split(",") if k.strip()]
+        self._key_index = 0
+
+    @property
+    def current_api_key(self) -> str:
+        if not self._api_keys:
+            return ""
+        key = self._api_keys[self._key_index]
+        # Rotate the index for the next request
+        self._key_index = (self._key_index + 1) % len(self._api_keys)
+        from loguru import logger
+        logger.info(f"OpenRouter rotating to key index {self._key_index} (key prefix: {key[:12]}...)")
+        return key
 
     def _build_request_body(
         self, request: Any, thinking_enabled: bool | None = None
@@ -49,16 +66,68 @@ class OpenRouterProvider(AnthropicMessagesTransport):
 
     def _request_headers(self) -> dict[str, str]:
         """Return OpenRouter's Anthropic-compatible messages headers."""
+        key = self.current_api_key
         return {
             "Accept": "text/event-stream",
-            "Authorization": f"Bearer {self._api_key}",
+            "Authorization": f"Bearer {key}",
             "Content-Type": "application/json",
             "anthropic-version": _ANTHROPIC_VERSION,
         }
 
     def _model_list_headers(self) -> dict[str, str]:
         """Return OpenRouter's OpenAI-compatible model-list headers."""
-        return {"Authorization": f"Bearer {self._api_key}"}
+        key = self._api_keys[0] if self._api_keys else ""
+        return {"Authorization": f"Bearer {key}"}
+
+    async def _send_model_list_request(self) -> httpx.Response:
+        """Query the provider endpoint; try different keys if rate-limited or unauthorized."""
+        attempts = max(1, len(self._api_keys))
+        last_response = None
+        for attempt in range(attempts):
+            key = self.current_api_key
+            headers = {"Authorization": f"Bearer {key}"}
+            try:
+                from loguru import logger
+                logger.info(f"Querying OpenRouter model list using key prefix: {key[:12]}...")
+                response = await self._client.get("/models", headers=headers)
+                if response.status_code == 200:
+                    return response
+                last_response = response
+                if response.status_code in (429, 401, 403, 402) and len(self._api_keys) > 1:
+                    continue
+                return response
+            except Exception:
+                if len(self._api_keys) > 1:
+                    continue
+                raise
+        if last_response is not None:
+            return last_response
+        raise ModelListResponseError("OpenRouter model list query failed.")
+
+    async def _validated_stream_send(
+        self, body: dict, *, req_tag: str
+    ) -> httpx.Response:
+        """Send request; catch 429/401/403/402 and retry with the next rotated API key."""
+        attempts = max(1, len(self._api_keys))
+        last_error = None
+        for attempt in range(attempts):
+            try:
+                response = await super()._validated_stream_send(body, req_tag=req_tag)
+                return response
+            except httpx.HTTPStatusError as exc:
+                last_error = exc
+                if exc.response.status_code in (429, 401, 403, 402) and len(self._api_keys) > 1:
+                    from loguru import logger
+                    logger.warning(
+                        f"OpenRouter request failed with HTTP {exc.response.status_code} "
+                        f"using attempt {attempt + 1}/{attempts}. Retrying with next key..."
+                    )
+                    continue
+                raise
+        if last_error is not None:
+            raise last_error
+        raise ProviderError("OpenRouter request failed.")
+
 
     def _extract_model_ids_from_model_list_payload(
         self, payload: Any

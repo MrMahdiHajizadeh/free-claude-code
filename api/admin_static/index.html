@@ -21,9 +21,13 @@
       </aside>
 
       <main class="main">
-        <header class="topbar">
+        <header class="topbar" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
           <div>
             <h2 id="pageTitle">Providers</h2>
+          </div>
+          <div class="quick-toggle" style="display: flex; gap: 8px;">
+            <button id="switchToOpenRouter" class="secondary-button" style="padding: 6px 12px; font-size: 0.85rem;" type="button">Use OpenRouter (Free)</button>
+            <button id="switchToNvidia" class="secondary-button" style="padding: 6px 12px; font-size: 0.85rem;" type="button">Use NVIDIA NIM</button>
           </div>
         </header>
 
@@ -50,6 +54,77 @@
             ></div>
           </section>
 
+          <section id="view-model_hub" class="admin-view" data-view="model_hub" hidden>
+            <div class="model-hub-layout">
+              <!-- Left Column: Browse Models -->
+              <div class="model-hub-pane">
+                <h3 class="pane-title">1. Browse & Select Model</h3>
+                <div class="model-search-container">
+                  <input type="text" id="hubSearchInput" class="model-search-box" placeholder="Search models by name or slug..." />
+                </div>
+                <div class="models-list-scroll" id="hubModelList"></div>
+              </div>
+              
+              <!-- Right Column: Assign Slots -->
+              <div class="model-hub-pane">
+                <h3 class="pane-title">2. Assign to Claude Code Slots</h3>
+                
+                <!-- Selected Model Preview -->
+                <div class="selected-preview-card" style="margin-bottom: 8px;">
+                  <div class="selected-preview-details">
+                    <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--accent); font-weight: 700;">Selected Model:</span>
+                    <strong id="hubSelectedName" style="font-size: 15px;">Qwen3 Coder 480B MoE</strong>
+                    <span id="hubSelectedSlug" style="font-size: 12px; color: var(--muted); font-family: monospace;">open_router/qwen/qwen3-coder:free</span>
+                  </div>
+                  <div id="hubSelectedBadge"></div>
+                </div>
+                
+                <!-- Assignment Slots -->
+                <div class="assignment-slots">
+                  <!-- Default Model -->
+                  <div class="assignment-slot-card" data-slot="MODEL">
+                    <div class="assignment-slot-header">
+                      <span class="assignment-slot-title">Default Model</span>
+                      <span class="assignment-slot-env">MODEL</span>
+                    </div>
+                    <div class="assignment-slot-current" id="slot-MODEL">None</div>
+                    <button class="primary-button assign-btn" type="button" data-slot="MODEL">Assign Selected Model</button>
+                  </div>
+                  
+                  <!-- Opus override -->
+                  <div class="assignment-slot-card" data-slot="MODEL_OPUS">
+                    <div class="assignment-slot-header">
+                      <span class="assignment-slot-title">Opus Override</span>
+                      <span class="assignment-slot-env">MODEL_OPUS</span>
+                    </div>
+                    <div class="assignment-slot-current" id="slot-MODEL_OPUS">None</div>
+                    <button class="secondary-button assign-btn" type="button" data-slot="MODEL_OPUS">Assign Selected Model</button>
+                  </div>
+                  
+                  <!-- Sonnet override -->
+                  <div class="assignment-slot-card" data-slot="MODEL_SONNET">
+                    <div class="assignment-slot-header">
+                      <span class="assignment-slot-title">Sonnet Override</span>
+                      <span class="assignment-slot-env">MODEL_SONNET</span>
+                    </div>
+                    <div class="assignment-slot-current" id="slot-MODEL_SONNET">None</div>
+                    <button class="secondary-button assign-btn" type="button" data-slot="MODEL_SONNET">Assign Selected Model</button>
+                  </div>
+                  
+                  <!-- Haiku override -->
+                  <div class="assignment-slot-card" data-slot="MODEL_HAIKU">
+                    <div class="assignment-slot-header">
+                      <span class="assignment-slot-title">Haiku Override</span>
+                      <span class="assignment-slot-env">MODEL_HAIKU</span>
+                    </div>
+                    <div class="assignment-slot-current" id="slot-MODEL_HAIKU">None</div>
+                    <button class="secondary-button assign-btn" type="button" data-slot="MODEL_HAIKU">Assign Selected Model</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
           <section id="view-messaging" class="admin-view" data-view="messaging" hidden>
             <div
               id="messagingSections"
@@ -71,6 +146,18 @@
           <button id="applyButton" class="primary-button" type="button" disabled>Apply</button>
         </div>
       </footer>
+    </div>
+    <div id="modelModal" class="modal-overlay">
+      <div class="modal-window">
+        <div class="modal-header">
+          <h3>Browse & Select Model</h3>
+          <button type="button" class="close-modal-btn" id="closeModalBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <input type="text" id="modelSearchInput" class="model-search-box" placeholder="Search models by name or slug..." style="margin-bottom: 12px;" />
+          <div id="modalModelList"></div>
+        </div>
+      </div>
     </div>
     <script src="/admin/assets/admin.js"></script>
   </body>

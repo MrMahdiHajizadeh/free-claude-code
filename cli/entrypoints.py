@@ -185,6 +185,8 @@ def _claude_child_env(
     env["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] = "190000"
     if token := settings.anthropic_auth_token.strip():
         env["ANTHROPIC_AUTH_TOKEN"] = token
+    if "NO_PROXY" not in env and "no_proxy" not in env:
+        env["NO_PROXY"] = "localhost,127.0.0.1,::1"
     return env
 
 
@@ -210,6 +212,9 @@ def _preflight_proxy(proxy_root_url: str) -> str | None:
 
 def launch_claude(argv: Sequence[str] | None = None) -> None:
     """Launch Claude Code with Free Claude Code proxy environment variables."""
+
+    if "NO_PROXY" not in os.environ and "no_proxy" not in os.environ:
+        os.environ["NO_PROXY"] = "localhost,127.0.0.1,::1"
 
     settings = get_settings()
     proxy_root_url = local_proxy_root_url(settings)
@@ -262,3 +267,66 @@ def launch_claude(argv: Sequence[str] | None = None) -> None:
             unregister_pid(process.pid)
 
     raise SystemExit(return_code)
+
+
+def select_model() -> None:
+    """Select active model for Free Claude Code."""
+    from config.settings import get_settings
+    from api.admin_config import write_managed_env
+
+    settings = get_settings()
+    current_model = settings.model or "Not set"
+
+    models_options = [
+        ("NVIDIA NIM: Nemotron 3 Super", "nvidia_nim/nvidia/nemotron-3-super-120b-a12b"),
+        ("OpenRouter: Llama 3.3 70B (free)", "open_router/meta-llama/llama-3.3-70b-instruct:free"),
+        ("OpenRouter: Qwen3 Coder 480B MoE (free)", "open_router/qwen/qwen3-coder:free"),
+        ("OpenRouter: Gemma 4 31B (free)", "open_router/google/gemma-4-31b-it:free"),
+        ("OpenRouter: Free Models Router (free)", "open_router/openrouter/free"),
+        ("OpenRouter: Nous Hermes 3 405B (free)", "open_router/nousresearch/hermes-3-llama-3.1-405b:free"),
+    ]
+
+    print("==================================================")
+    print("        Free Claude Code Model Selector           ")
+    print("==================================================")
+    print(f"Current Model: {current_model}\n")
+    print("Choose a model from the list below:")
+    for idx, (label, slug) in enumerate(models_options, 1):
+        print(f"  [{idx}] {label}")
+        print(f"      Slug: {slug}")
+    print(f"  [{len(models_options)+1}] Enter custom model slug manually")
+    print("==================================================")
+
+    try:
+        choice_str = input(f"Select option (1-{len(models_options)+1}): ").strip()
+        if not choice_str:
+            print("No selection made. Exiting.")
+            return
+
+        choice = int(choice_str)
+        if 1 <= choice <= len(models_options):
+            new_model = models_options[choice - 1][1]
+        elif choice == len(models_options) + 1:
+            new_model = input("Enter custom model slug: ").strip()
+            if not new_model:
+                print("Invalid model slug. Exiting.")
+                return
+        else:
+            print("Invalid option. Exiting.")
+            return
+    except ValueError:
+        print("Invalid input. Exiting.")
+        return
+    except (KeyboardInterrupt, EOFError):
+        print("\nExiting.")
+        return
+
+    print(f"\nSetting model to: {new_model}")
+    res = write_managed_env({"MODEL": new_model})
+    if res.get("applied"):
+        print("Model updated successfully in config!")
+        print("Please restart fcc-server to apply changes.")
+    else:
+        print("Failed to apply model update:")
+        print(res.get("errors", ["Unknown error"]))
+
