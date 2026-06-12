@@ -1,4 +1,4 @@
-# free cloude code / کلاد کد رایگان!
+# free-claude-code / کلاد کد رایگان
 
 استفاده از ابزارهای **Claude Code CLI**، افزونه **VS Code**، افزونه **JetBrains ACP** یا ربات‌های چت با پروکسی شخصی‌سازی‌شده و سازگار با آنتروپیک (Anthropic).
 
