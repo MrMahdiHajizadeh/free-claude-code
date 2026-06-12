@@ -1,4 +1,4 @@
-# 🤖 فری کلود کد (Free Claude Code)
+# 🤖 فری کلاود کد ؟ claude code رایگان!
 
 استفاده از ابزارهای **Claude Code CLI**، افزونه **VS Code**، افزونه **JetBrains ACP** یا ربات‌های چت با پروکسی شخصی‌سازی‌شده و سازگار با آنتروپیک (Anthropic).
 
