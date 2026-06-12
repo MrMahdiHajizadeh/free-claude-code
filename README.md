@@ -41,12 +41,12 @@
 
 **سیستم‌های لینوکس و مک (macOS/Linux):**
 ```bash
-curl -fsSL "https://github.com/Alishahryar1/free-claude-code/blob/main/scripts/install.sh?raw=1" | sh
+curl -fsSL "https://github.com/MrMahdiHajizadeh/free-claude-code/blob/main/scripts/install.sh?raw=1" | sh
 ```
 
 **پاورشل ویندوز (Windows PowerShell):**
 ```powershell
-irm "https://github.com/Alishahryar1/free-claude-code/blob/main/scripts/install.ps1?raw=1" | iex
+irm "https://github.com/MrMahdiHajizadeh/free-claude-code/blob/main/scripts/install.ps1?raw=1" | iex
 ```
 
 ### ۲. اجرای سرور پروکسی
@@ -161,31 +161,31 @@ fcc-claude
 **سیستم‌های مک و لینوکس (macOS/Linux):**
 ```bash
 # استخراج متن با NVIDIA NIM (Riva gRPC)
-curl -fsSL "https://github.com/Alishahryar1/free-claude-code/blob/main/scripts/install.sh?raw=1" | sh -s -- --voice-nim
+curl -fsSL "https://github.com/MrMahdiHajizadeh/free-claude-code/blob/main/scripts/install.sh?raw=1" | sh -s -- --voice-nim
 
 # استخراج متن با Whisper محلی (سی‌پی‌یو یا کارت گرافیک انویدیا)
-curl -fsSL "https://github.com/Alishahryar1/free-claude-code/blob/main/scripts/install.sh?raw=1" | sh -s -- --voice-local
+curl -fsSL "https://github.com/MrMahdiHajizadeh/free-claude-code/blob/main/scripts/install.sh?raw=1" | sh -s -- --voice-local
 
 # نصب هر دو موتور صوتی
-curl -fsSL "https://github.com/Alishahryar1/free-claude-code/blob/main/scripts/install.sh?raw=1" | sh -s -- --voice-all
+curl -fsSL "https://github.com/MrMahdiHajizadeh/free-claude-code/blob/main/scripts/install.sh?raw=1" | sh -s -- --voice-all
 
 # اجرای Whisper محلی با شتاب‌دهنده گرافیکی CUDA
-curl -fsSL "https://github.com/Alishahryar1/free-claude-code/blob/main/scripts/install.sh?raw=1" | sh -s -- --voice-local --torch-backend cu130
+curl -fsSL "https://github.com/MrMahdiHajizadeh/free-claude-code/blob/main/scripts/install.sh?raw=1" | sh -s -- --voice-local --torch-backend cu130
 ```
 
 **پاورشل ویندوز (Windows PowerShell):**
 ```powershell
 # استخراج متن با NVIDIA NIM (Riva gRPC)
-& ([scriptblock]::Create((irm "https://github.com/Alishahryar1/free-claude-code/blob/main/scripts/install.ps1?raw=1"))) -VoiceNim
+& ([scriptblock]::Create((irm "https://github.com/MrMahdiHajizadeh/free-claude-code/blob/main/scripts/install.ps1?raw=1"))) -VoiceNim
 
 # استخراج متن با Whisper محلی
-& ([scriptblock]::Create((irm "https://github.com/Alishahryar1/free-claude-code/blob/main/scripts/install.ps1?raw=1"))) -VoiceLocal
+& ([scriptblock]::Create((irm "https://github.com/MrMahdiHajizadeh/free-claude-code/blob/main/scripts/install.ps1?raw=1"))) -VoiceLocal
 
 # نصب هر دو موتور صوتی
-& ([scriptblock]::Create((irm "https://github.com/Alishahryar1/free-claude-code/blob/main/scripts/install.ps1?raw=1"))) -VoiceAll
+& ([scriptblock]::Create((irm "https://github.com/MrMahdiHajizadeh/free-claude-code/blob/main/scripts/install.ps1?raw=1"))) -VoiceAll
 
 # اجرای Whisper محلی با شتاب‌دهنده گرافیکی CUDA
-& ([scriptblock]::Create((irm "https://github.com/Alishahryar1/free-claude-code/blob/main/scripts/install.ps1?raw=1"))) -VoiceLocal -TorchBackend cu130
+& ([scriptblock]::Create((irm "https://github.com/MrMahdiHajizadeh/free-claude-code/blob/main/scripts/install.ps1?raw=1"))) -VoiceLocal -TorchBackend cu130
 ```
 پس از نصب، سرور `fcc-server` را مجدداً راه‌اندازی کنید.
 
@@ -223,7 +223,7 @@ free-claude-code/
 ### ۲. اجرای پروژه از روی سورس کد
 اگر می‌خواهید مستقیماً روی سورس کد کار کنید یا آن را توسعه دهید:
 ```bash
-git clone https://github.com/Alishahryar1/free-claude-code.git
+git clone https://github.com/MrMahdiHajizadeh/free-claude-code.git
 cd free-claude-code
 uv run uvicorn server:app --host 0.0.0.0 --port 8082
 ```
